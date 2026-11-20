@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notre album</title>
+<style>
+:root{--bg:#ffe4ec;--bg2:#fff3f6;--fg:#5a2a3a;--mut:#b0687f;--card:#fff;--acc:#ff4d7d;--acc2:#ff8fab;--bd:#ffc2d4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#2a1219;--bg2:#1d0d12;--fg:#ffe4ec;--mut:#e59ab3;--card:#3a1b25;--acc:#ff6b94;--acc2:#ff9db8;--bd:#5c2c3b}}
+:root[data-theme="dark"]{--bg:#2a1219;--bg2:#1d0d12;--fg:#ffe4ec;--mut:#e59ab3;--card:#3a1b25;--acc:#ff6b94;--acc2:#ff9db8;--bd:#5c2c3b}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:linear-gradient(160deg,var(--bg),var(--bg2));background-attachment:fixed;color:var(--fg);font-family:Georgia,'Times New Roman',serif;min-height:100vh;overflow-x:hidden}
+button{font:inherit;cursor:pointer}
+/* coeurs flottants */
+#hearts{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+#hearts span{position:absolute;bottom:-40px;opacity:0;animation:rise linear infinite}
+@keyframes rise{0%{transform:translateY(0) rotate(-10deg);opacity:0}10%{opacity:.55}90%{opacity:.35}100%{transform:translateY(-110vh) rotate(15deg);opacity:0}}
+#app{position:relative;z-index:1}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:90vh;gap:14px;padding:20px;text-align:center}
+.beat{font-size:4rem;animation:beat 1.2s infinite}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.2)}30%{transform:scale(1)}45%{transform:scale(1.15)}}
+h1{margin:0;font-weight:normal;font-size:2.1rem;color:var(--acc);font-style:italic}
+input[type=password]{padding:13px 18px;border-radius:999px;border:2px solid var(--bd);background:var(--card);color:var(--fg);font-size:1rem;text-align:center;outline:none}
+input[type=password]:focus{border-color:var(--acc)}
+.btn{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border:0;border-radius:999px;padding:12px 24px;font-size:1rem;box-shadow:0 4px 14px #ff4d7d55}
+.err{color:var(--acc);min-height:1.2em;font-size:.9rem}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:20px}
+.sub{color:var(--mut);font-size:.95rem}
+.sep{text-align:center;color:var(--acc);letter-spacing:10px;font-size:1rem;padding:0 20px 12px}
+.grid{columns:3 200px;column-gap:14px;padding:0 20px 50px}
+.grid figure{margin:0 0 14px;break-inside:avoid;position:relative;background:var(--card);border-radius:20px;overflow:hidden;border:3px solid var(--bd);box-shadow:0 6px 18px #ff4d7d22;transition:transform .2s}
+.grid figure:hover{transform:translateY(-3px) rotate(-.6deg);border-color:var(--acc)}
+.grid img{width:100%;display:block;cursor:zoom-in}
+.heart{position:absolute;bottom:8px;left:10px;font-size:1.2rem;filter:drop-shadow(0 1px 3px #0006);pointer-events:none}
+.del{position:absolute;top:8px;right:8px;background:#fffc;color:var(--acc);border:0;border-radius:50%;width:30px;height:30px;font-size:1.1rem}
+#lb{position:fixed;inset:0;background:rgba(40,8,20,.92);display:none;align-items:center;justify-content:center;z-index:5}
+#lb img{max-width:96%;max-height:92%;border-radius:16px;border:4px solid #ff8fab}
+.empty{text-align:center;color:var(--mut);padding:60px 20px;font-size:1.1rem}
+.ovl{position:fixed;inset:0;background:rgba(40,8,20,.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px}
+.dlg{background:var(--card);color:var(--fg);border-radius:24px;padding:26px;text-align:center;max-width:340px;border:3px solid var(--bd)}
+.dlg p{margin:6px 0 16px;font-size:1.1rem}
+.btn.no{background:var(--bd);color:var(--fg);box-shadow:none}
+.del{width:38px!important;height:38px!important;font-size:1.3rem!important}
+#status{min-height:1.3em;padding:0 20px 10px;color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="hearts"></div>
+<div id="app"></div>
+<div id="lb"><img id="lbi" alt=""></div>
+<script>
+// Mot de passe : empreinte SHA-256
+const PW_HASH="69b9ec155d37a885cb5190b5e3f0ce858086755cbb1f60111fab583e62bd0faa";
+const app=document.getElementById("app");
+let db=null,assets=null,photos=[];
+
+// coeurs qui montent
+(function(){
+  const h=document.getElementById("hearts"),em=["💗","💖","💕","🩷","❤️","💘"];
+  for(let i=0;i<16;i++){
+    const s=document.createElement("span");s.textContent=em[i%em.length];
+    s.style.left=(Math.random()*95)+"%";s.style.fontSize=(14+Math.random()*22)+"px";
+    s.style.animationDuration=(9+Math.random()*10)+"s";s.style.animationDelay=(-Math.random()*18)+"s";
+    h.appendChild(s);
+  }
+})();
+
+async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function unlocked(){return false} // le code est redemandé à chaque ouverture
+
+function login(){
+  app.innerHTML=`<div class="center"><div class="beat">💖</div><h1>Notre petit album</h1><div class="sub">Entre le mot de passe, mon coeur 💕</div>
+  <input type="password" id="pw" placeholder="Mot de passe" autofocus><button class="btn" id="go">Entrer 💗</button><div class="err" id="err"></div></div>`;
+  const go=async()=>{
+    if(await sha(document.getElementById("pw").value)===PW_HASH){main()}
+    else document.getElementById("err").textContent="Oups, mauvais mot de passe 💔";
+  };
+  document.getElementById("go").onclick=go;
+  document.getElementById("pw").onkeydown=e=>{if(e.key==="Enter")go()};
+}
+
+function render(){
+  const g=document.getElementById("grid");if(!g)return;
+  document.getElementById("count").textContent=photos.length+" souvenir"+(photos.length>1?"s":"")+" à deux 💞";
+  if(!photos.length){g.innerHTML='<div class="empty">Aucune photo pour l’instant 💗<br>Ajoutez la première ! 📸</div>';return}
+  g.innerHTML="";
+  photos.forEach(p=>{
+    const f=document.createElement("figure");
+    const i=document.createElement("img");i.src="/_blob/"+p.assetId;i.loading="lazy";i.alt="";
+    i.onclick=()=>{document.getElementById("lbi").src=i.src;document.getElementById("lb").style.display="flex"};
+    f.appendChild(i);
+    const hh=document.createElement("span");hh.className="heart";hh.textContent="💗";f.appendChild(hh);
+    const d=document.createElement("button");d.className="del";d.textContent="×";d.title="Supprimer";
+    d.onclick=e=>{e.stopPropagation();askDelete(p)};
+    f.appendChild(d);g.appendChild(f);
+  });
+}
+
+function askDelete(p){
+  const o=document.createElement("div");o.className="ovl";
+  o.innerHTML='<div class="dlg"><div style="font-size:2.2rem">💔</div><p>Supprimer cette photo ?</p><button class="btn" id="yes">Oui, supprimer</button> <button class="btn no" id="no">Annuler</button></div>';
+  document.body.appendChild(o);
+  o.querySelector("#no").onclick=()=>o.remove();
+  o.querySelector("#yes").onclick=async()=>{
+    o.remove();
+    const st=document.getElementById("status");
+    try{await db.doc("photos/"+p.id).delete()}catch(e){st.textContent="Suppression impossible (il faut un accès Contributeur).";return}
+    try{if(assets)await assets.delete(p.assetId)}catch(e){}
+    st.textContent="Photo supprimée";setTimeout(()=>st.textContent="",2000);
+  };
+}
+
+async function upload(files){
+  const st=document.getElementById("status");
+  if(!assets||!db){st.textContent="Ajout impossible : il faut un accès Contributeur.";return}
+  let n=0;
+  for(const f of files){
+    if(!f.type.startsWith("image/"))continue;
+    st.textContent="Envoi "+(++n)+"/"+files.length+"… 💌";
+    try{
+      const a=await assets.upload(f);
+      await db.doc("photos/p"+Date.now()+"_"+n).set({assetId:a.id,ts:Date.now(),name:f.name});
+    }catch(e){st.textContent="Erreur sur "+f.name;return}
+  }
+  st.textContent="C’est ajouté 💖";setTimeout(()=>st.textContent="",2500);
+}
+
+async function main(){
+  app.innerHTML=`<header><div><h1>💕 Notre album 💕</h1><div class="sub" id="count"></div></div>
+  <div><input type="file" id="file" accept="image/*" multiple hidden><button class="btn" id="add">💗 Ajouter des photos</button></div></header>
+  <div class="sep">♥ ♥ ♥ ♥ ♥</div>
+  <div id="status"></div><div class="grid" id="grid"><div class="empty">Chargement… 💞</div></div>`;
+  document.getElementById("add").onclick=()=>document.getElementById("file").click();
+  document.getElementById("file").onchange=e=>{upload([...e.target.files]);e.target.value=""};
+  try{
+    db=await claude.use("db");assets=await claude.use("assets");
+    if(!db){document.getElementById("grid").innerHTML='<div class="empty">Connecte-toi à claude.ai pour voir l’album 💗</div>';return}
+    db.collection("photos").onSnapshot(s=>{
+      photos=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.ts-a.ts);render();
+    },()=>{document.getElementById("grid").innerHTML='<div class="empty">Impossible de charger les photos.</div>'});
+  }catch(e){document.getElementById("grid").innerHTML='<div class="empty">Impossible de charger les photos.</div>'}
+}
+document.getElementById("lb").onclick=()=>document.getElementById("lb").style.display="none";
+unlocked()?main():login();
+</script>
+</body>
+</html>
